@@ -13,6 +13,7 @@ use winapi::{
         windef::{HWND},
     },
     um::{
+        errhandlingapi::{GetLastError},
         libloaderapi::{GetModuleHandleW},
         winuser::{
             self, DefWindowProcW, MSG, PeekMessageW, DispatchMessageW,
@@ -103,11 +104,11 @@ message: UINT, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
 
 unsafe fn create_window(messenger: *mut Messenger) -> WindowingResult<HWND> {
     let window_class_wchars: Vec<u16> = {
-        let window_class_string = OsString::from("BraveWindowingClass");
+        let window_class_string = OsString::from("BraveWindowingClass\0");
         window_class_string.encode_wide().collect()
     };
     let window_name_wchars: Vec<u16> = {
-        let name = OsString::from("Brave Window");
+        let name = OsString::from("Brave Window\0");
         name.encode_wide().collect()
     };
 
@@ -132,7 +133,7 @@ unsafe fn create_window(messenger: *mut Messenger) -> WindowingResult<HWND> {
     );
     if window_handle.is_null() {
         Err(WindowingError::BadCreation(
-            format!("ErrorCode from CreateWindow={:?}", window_handle)
+            format!("Return={:?}. ErrorCode from CreateWindow={:?}", window_handle, GetLastError())
         ))
     } else {
         Ok(window_handle)
