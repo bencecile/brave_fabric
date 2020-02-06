@@ -1,8 +1,9 @@
 mod message;
 
 use std::{
+    cell::{RefCell},
+    collections::{BTreeMap},
     ffi::{OsString},
-    mem,
     os::windows::ffi::{OsStrExt},
     ptr,
     sync::mpsc::{self, Sender, Receiver},
@@ -18,7 +19,6 @@ use winapi::{
         winuser::{
             self, DefWindowProcW, MSG, PeekMessageW, DispatchMessageW,
             CreateWindowExW, ShowWindow, DestroyWindow, RegisterClassW, WNDCLASSW,
-            CREATESTRUCTW, SetWindowLongPtrW, GetWindowLongPtrW,
         },
     },
 };
@@ -27,21 +27,22 @@ use crate::{
     event::{Event},
 };
 
+thread_local!(static WINDOW_MESSENGERS: MessengerPool = Default::default());
+
 pub struct WindowImpl {
     window_handle: HWND,
-    messenger: *mut Messenger,
     receiver: Receiver<Event>,
 }
 impl WindowImpl {
     pub unsafe fn new() -> WindowingResult<WindowImpl> {
-        let (sender, receiver) = mpsc::channel();
-        let messenger = Box::into_raw(Box::new(Messenger::new(sender)));
-        let window_handle = create_window(messenger)?;
+        let window_handle = create_window()?;
         ShowWindow(window_handle, winuser::SW_SHOWNORMAL);
+
+        let (sender, receiver) = mpsc::channel();
+        WINDOW_MESSENGERS.with(|messengers| messengers.insert(window_handle, sender));
 
         Ok(WindowImpl {
             window_handle,
-            messenger,
             receiver,
         })
     }
@@ -65,44 +66,52 @@ impl Drop for WindowImpl {
     fn drop(&mut self) {
         unsafe {
             DestroyWindow(self.window_handle);
-            Box::from_raw(self.messenger);
         }
+        WINDOW_MESSENGERS.with(|messengers| messengers.remove(self.window_handle));
     }
 }
 
-struct Messenger {
-    sender: Sender<Event>,
+#[derive(Default)]
+struct MessengerPool {
+    handles: RefCell<BTreeMap<HWND, Sender<Event>>>,
 }
-impl Messenger {
-    fn new(sender: Sender<Event>) -> Messenger {
-        Messenger { sender }
+impl MessengerPool {
+    fn insert(&self, window_handle: HWND, sender: Sender<Event>) {
+        let mut handles = self.handles.borrow_mut();
+        handles.insert(window_handle, sender);
+    }
+
+    fn get(&self, window_handle: HWND) -> Option<Sender<Event>> {
+        let handles = self.handles.borrow_mut();
+        handles.get(&window_handle).map(|sender| sender.clone())
+    }
+
+    fn remove(&self, window_handle: HWND) {
+        let mut handles = self.handles.borrow_mut();
+        handles.remove(&window_handle);
     }
 }
 
 // The window proc that every message will go through
 unsafe extern "system" fn window_proc(window_handle: HWND,
 message: UINT, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
-    let messenger: *mut Messenger = {
-        if message == winuser::WM_CREATE {
-            let create_struct: *const CREATESTRUCTW = mem::transmute(l_param);
-            let messenger: *mut Messenger = mem::transmute((*create_struct).lpCreateParams);
-            SetWindowLongPtrW(window_handle, winuser::GWLP_USERDATA, messenger as isize);
-            messenger
-        } else {
-            let long_ptr = GetWindowLongPtrW(window_handle, winuser::GWLP_USERDATA);
-            mem::transmute(long_ptr)
-        }
-    };
-
+    // It will probably be more common to ignore a message than send an event
+    //  So check the message first before accessing the mutex (sys call)
     if let Some(event) = self::message::convert_message(message, w_param, l_param) {
-        if let Err(e) = (*messenger).sender.send(event) {
-            println!("Failed to send the event from the messenger. {:?}", e);
-        }
+        WINDOW_MESSENGERS.with(|messengers| {
+            if let Some(sender) = messengers.get(window_handle) {
+                if let Err(e) = sender.send(event) {
+                    // TODO Log this
+                    println!("Failed to send the event from the messenger. {:?}", e);
+                }
+            }
+        });
     }
+
     DefWindowProcW(window_handle, message, w_param, l_param)
 }
 
-unsafe fn create_window(messenger: *mut Messenger) -> WindowingResult<HWND> {
+unsafe fn create_window() -> WindowingResult<HWND> {
     let window_class_wchars: Vec<u16> = {
         let window_class_string = OsString::from("BraveWindowingClass\0");
         window_class_string.encode_wide().collect()
@@ -128,8 +137,8 @@ unsafe fn create_window(messenger: *mut Messenger) -> WindowingResult<HWND> {
         winuser::CW_USEDEFAULT, winuser::CW_USEDEFAULT,
         ptr::null_mut(),       // Parent window
         ptr::null_mut(),       // Menu
-        instance_handle,  // Instance handle
-        messenger as *mut _,        // Additional application data
+        instance_handle,
+        ptr::null_mut(),       // Additional application data
     );
     if window_handle.is_null() {
         Err(WindowingError::BadCreation(
