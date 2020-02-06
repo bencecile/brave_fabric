@@ -10,9 +10,6 @@ members = [
     "libs/log",
     "libs/sound",
     "libs/windowing",
-
-    "system/home",
-    "system/init",
 ]
 
 [profile.dev]

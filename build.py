@@ -13,19 +13,19 @@ class Device:
     def __eq__(self, rhs):
         return self.name == rhs.name
 class Devices:
-    Pixel2 = Device("pixel2", "aarch64-linux-android", False)
+    Android = Device("android", "aarch64-linux-android", False)
     # Only a subset of the projects will be available on desktops
     Windows = Device("windows", "x86_64-pc-windows-msvc", True)
     def all():
         return [
-            Devices.Pixel2,
+            Devices.Android,
             Devices.Windows,
         ]
     def from_str(device_name):
         try:
             return {
-                "pixel2": Devices.Pixel2,
-                "windows": Devices.Windows,
+                Devices.Android.name: Devices.Android,
+                Devices.Windows.name: Devices.Windows,
             }[device_name]
         except KeyError:
             return Device("Match Nothing")
