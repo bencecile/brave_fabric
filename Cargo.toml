@@ -1,0 +1,21 @@
+[workspace]
+members = [
+    "desktop",
+
+    "emulator",
+    "emulator/common",
+    "emulator/gba",
+
+    "libs/graphics",
+    "libs/log",
+    "libs/sound",
+    "libs/windowing",
+
+    "system/home",
+    "system/init",
+]
+
+[profile.dev]
+# We want the dev profile to run really well (cause emulators) but still be debuggable
+opt-level = 3
+debug = 2
