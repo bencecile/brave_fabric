@@ -60,7 +60,7 @@ def build_for_desktop(device):
         "brave_emulator",
     ])
 def build_for_android(device):
-    build_projects(device, ["system_init"])
+    print("Building for Android is not supported right now")
 
 def build_projects(device, projects):
     for project in projects: build(device, project)
