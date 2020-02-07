@@ -2,6 +2,7 @@ use std::{
     env,
     path::{Path, PathBuf},
     thread,
+    time::{Duration, Instant},
 };
 use brave_emulator_common::{EmulatorCore, EmulatorCoreError};
 use brave_emulator_gba::{GBACore, GBASettingsBuilder};
@@ -19,7 +20,8 @@ fn main() -> Result<(), String> {
     let mut window = Window::new()
         .expect("Failed to create the window");
     let mut emulator_core = find_runnable_core(&rom_path, &window)?;
-    // FIXME Do the timing
+    let mut last_update = Instant::now();
+    let mut until_next_update = Duration::from_secs(0);
     while !is_window_closed {
         for event in window.fetch_current_events() {
             match event {
@@ -27,7 +29,15 @@ fn main() -> Result<(), String> {
             }
         }
 
-        thread::yield_now();
+        let delta = last_update.elapsed();
+        if delta > until_next_update {
+            until_next_update = emulator_core.on_update(delta);
+            last_update = Instant::now();
+            // Sleep for as much time as most operating systems will allow without going over
+            // Then we will spin for the remaining time
+            let rounded_millis = until_next_update.as_millis() as u64 - 1;
+            thread::sleep(Duration::from_millis(rounded_millis));
+        }
     }
 
     Ok(())

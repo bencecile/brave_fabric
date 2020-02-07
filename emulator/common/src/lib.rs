@@ -16,7 +16,8 @@ pub trait EmulatorCore {
 }
 
 pub type EmulatorCoreResult<T> = Result<T, EmulatorCoreError>;
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub enum EmulatorCoreError {
     IncompatibleRom,
+    BiosFileNotFound(String),
 }

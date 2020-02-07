@@ -133,8 +133,7 @@ unsafe fn create_window() -> WindowingResult<HWND> {
         window_class_wchars.as_ptr(), window_name_wchars.as_ptr(),
         winuser::WS_OVERLAPPEDWINDOW,
         // Size and position
-        winuser::CW_USEDEFAULT, winuser::CW_USEDEFAULT,
-        winuser::CW_USEDEFAULT, winuser::CW_USEDEFAULT,
+        10, 10, 400, 400,
         ptr::null_mut(),       // Parent window
         ptr::null_mut(),       // Menu
         instance_handle,

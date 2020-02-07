@@ -1,6 +1,6 @@
 use std::{
     path::{Path, PathBuf},
-    time::{Duration},
+    time::{Duration, Instant},
 };
 use brave_emulator_common::{
     EmulatorCore,
@@ -11,19 +11,20 @@ use brave_emulator_common::{
 use brave_windowing::{Window};
 
 pub struct GBACore {
+    start_time: Instant,
 }
 impl GBACore {
     pub fn create(settings: GBASettings, window: &Window) -> EmulatorCoreResult<Self> {
         let _rom_path = settings.validate_rom()?;
 
         Ok(GBACore {
+            start_time: Instant::now(),
         })
     }
 }
 impl EmulatorCore for GBACore {
-
     fn on_update(&mut self, delta: Duration) -> Duration {
-        delta
+        Duration::from_micros(13500)
     }
 
     fn on_pause(&mut self) {
@@ -48,7 +49,15 @@ impl GBASettings {
             _ => Err(EmulatorCoreError::IncompatibleRom),
         }
     }
-    fn bios_file(&self) -> PathBuf { self.bios_dir.join("GBA_BIOS.bin") }
+    fn validate_bios_file(&self) -> EmulatorCoreResult<PathBuf> {
+        let bios_file = self.bios_dir.join("GBA_BIOS.bin");
+        if !bios_file.is_file() {
+            Err(EmulatorCoreError::BiosFileNotFound(bios_file.display().to_string()))
+        } else {
+            // TODO Check the length of the bios file since that is constant
+            Ok(bios_file)
+        }
+    }
 }
 
 #[derive(Default)]
