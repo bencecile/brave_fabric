@@ -15,28 +15,36 @@ fn main() -> Result<(), String> {
     // Skip the first argument since it can't be relied upon
     let rom_path = parse_rom_path_from_args()?;
 
-    let mut is_window_closed = false;
-
     let mut window = Window::new()
         .expect("Failed to create the window");
     let mut emulator_core = find_runnable_core(&rom_path, &window)?;
     let mut last_update = Instant::now();
     let mut until_next_update = Duration::from_secs(0);
-    while !is_window_closed {
+    'main_loop: loop {
         for event in window.fetch_current_events() {
             match event {
-                Event::WindowClosed => is_window_closed = true,
+                Event::WindowClosed => break 'main_loop,
             }
         }
 
         let delta = last_update.elapsed();
         if delta > until_next_update {
-            until_next_update = emulator_core.on_update(delta);
+            until_next_update = match emulator_core.on_update(delta - until_next_update) {
+                Ok(next_update) => next_update,
+                Err(e) => {
+                    // TODO Log this properly
+                    println!("Error during update: {:?}", e);
+                    Duration::from_secs(0)
+                },
+            };
             last_update = Instant::now();
             // Sleep for as much time as most operating systems will allow without going over
-            // Then we will spin for the remaining time
-            let rounded_millis = until_next_update.as_millis() as u64 - 1;
-            thread::sleep(Duration::from_millis(rounded_millis));
+            // Then we will spin for the remaining time (limit of 1ms)
+            let rounded_millis = until_next_update.as_millis() as u64;
+            // Don't let it underflow. Sleeping for 0ms is also useless
+            if rounded_millis > 1 {
+                thread::sleep(Duration::from_millis(rounded_millis - 1));
+            }
         }
     }
 
@@ -69,7 +77,7 @@ fn make_gba_core(rom_path: &Path, window: &Window) -> Result<Option<GBACore>, St
     let gba_settings = GBASettingsBuilder::new()
         .with_rom_path(rom_path)
         // TODO Read this from the settings file
-        .with_bios_dir("emulator_games")
+        .with_bios_dir("C:\\BraveFabric\\emulator_games")
         .build()?;
     match GBACore::create(gba_settings, window) {
         Ok(core) => Ok(Some(core)),
