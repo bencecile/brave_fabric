@@ -1,13 +1,10 @@
 [workspace]
 members = [
-    "desktop",
-
     "emulator",
     "emulator/common",
     "emulator/gba",
 
     "libs/graphics",
-    "libs/log",
     "libs/sound",
     "libs/windowing",
 ]

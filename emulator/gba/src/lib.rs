@@ -14,8 +14,8 @@ use brave_emulator_common::{
 };
 use brave_windowing::{Window};
 use crate::{
-    cpu::{Cpu},
-    memory::{GBAMemory},
+    cpu::Cpu,
+    memory::GBAMemory,
 };
 
 const SAVE_INTERVAL: Duration = Duration::from_secs(60);
