@@ -8,27 +8,47 @@ use brave_emulator_common::{
     memory::{Memory, MemoryRegion},
 };
 
-pub const ADDRESS_START_BIOS: usize = 0x0000_0000;
-pub const ADDRESS_START_WRAM_BOARD: usize = 0x0200_0000;
-pub const ADDRESS_START_WRAM_CHIP: usize = 0x0300_0000;
-pub const ADDRESS_START_IO_REGISTERS: usize = 0x0400_0000;
-pub const ADDRESS_START_PALETTE: usize = 0x0500_0000;
-pub const ADDRESS_START_VRAM: usize = 0x0600_0000;
-pub const ADDRESS_START_OAM: usize = 0x0700_0000;
-pub const ADDRESS_START_GAMEPAK_WAIT0: usize = 0x0800_0000;
-pub const ADDRESS_START_GAMEPAK_WAIT1: usize = 0x0A00_0000;
-pub const ADDRESS_START_GAMEPAK_WAIT2: usize = 0x0C00_0000;
-pub const ADDRESS_START_GAMEPAK_SRAM: usize = 0x0E00_0000;
+/// The BIOS file will always be 16Kb
+const BIOS_FILE_SIZE: usize = 16 << 10;
+/// The work RAM on the board is 256KB
+const WRAM_ON_BOARD_SIZE: usize = 256 << 10;
+/// The work RAM on the chip is 32KB
+const WRAM_ON_CHIP_SIZE: usize = 32 << 10;
+/// 1KB for the IO registers
+const IO_REGISTERS_SIZE: usize = 1 << 10;
+/// 1KB for the palette RAM
+const PALETTE_RAM_SIZE: usize = 1 << 10;
+/// 96KB for the Video RAM
+const VRAM_SIZE: usize = 96 << 10;
+/// 1KB for the Object Attribute Memory
+const OAM_SIZE: usize = 1 << 10;
+/// The gamepak can be a max of 32MB
+const GAMEPAK_MAX_FILE_SIZE: usize = 32 << 20;
+/// 32KB for the SRAM
+const GAMEPAK_SRAM_SIZE: usize = 32 << 10;
 
-const BIOS_FILE_SIZE: usize = 16 << 10; // THe BIOS file will always be 16Kb
-const GAMEPAK_MAX_FILE_SIZE: usize = 32 << 20; // The gampak can be a max of 32MB
-const WRAM_ON_BOARD_SIZE: usize = 256 << 10; // The work RAM on the board is 256KB
-const WRAM_ON_CHIP_SIZE: usize = 32 << 10; // The work RAM on the chip is 32KB
-const IO_REGISTERS_SIZE: usize = 1 << 10; // 1KB for the IO registers
-const PALETTE_RAM_SIZE: usize = 1 << 10; // 1KB for the palette RAM
-const VRAM_SIZE: usize = 96 << 10; // 96KB for the Video RAM
-const OAM_SIZE: usize = 1 << 10; // 1KB for the Object Attribute Memory
-const GAMEPAK_SRAM_SIZE: usize = 32 << 10; //32KB for the SRAM
+const ADDRESS_START_BIOS: usize = 0x0000_0000;
+const ADDRESS_END_BIOS: usize = ADDRESS_START_BIOS + BIOS_FILE_SIZE;
+const ADDRESS_START_WRAM_BOARD: usize = 0x0200_0000;
+const ADDRESS_END_WRAM_BOARD: usize = ADDRESS_START_WRAM_BOARD + WRAM_ON_BOARD_SIZE;
+const ADDRESS_START_WRAM_CHIP: usize = 0x0300_0000;
+const ADDRESS_END_WRAM_CHIP: usize = ADDRESS_START_WRAM_CHIP + WRAM_ON_CHIP_SIZE;
+const ADDRESS_START_IO_REGISTERS: usize = 0x0400_0000;
+const ADDRESS_END_IO_REGISTERS: usize = ADDRESS_START_IO_REGISTERS + IO_REGISTERS_SIZE;
+const ADDRESS_START_PALETTE: usize = 0x0500_0000;
+const ADDRESS_END_PALETTE: usize = ADDRESS_START_PALETTE + PALETTE_RAM_SIZE;
+const ADDRESS_START_VRAM: usize = 0x0600_0000;
+const ADDRESS_END_VRAM: usize = ADDRESS_START_VRAM + VRAM_SIZE;
+const ADDRESS_START_OAM: usize = 0x0700_0000;
+const ADDRESS_END_OAM: usize = ADDRESS_START_OAM + OAM_SIZE;
+const ADDRESS_START_GAMEPAK_WAIT0: usize = 0x0800_0000;
+const ADDRESS_END_GAMEPAK_WAIT0: usize = ADDRESS_START_GAMEPAK_WAIT0 + GAMEPAK_MAX_FILE_SIZE;
+const ADDRESS_START_GAMEPAK_WAIT1: usize = 0x0A00_0000;
+const ADDRESS_END_GAMEPAK_WAIT1: usize = ADDRESS_START_GAMEPAK_WAIT1 + GAMEPAK_MAX_FILE_SIZE;
+const ADDRESS_START_GAMEPAK_WAIT2: usize = 0x0C00_0000;
+const ADDRESS_END_GAMEPAK_WAIT2: usize = ADDRESS_START_GAMEPAK_WAIT2 + GAMEPAK_MAX_FILE_SIZE;
+const ADDRESS_START_GAMEPAK_SRAM: usize = 0x0E00_0000;
+const ADDRESS_END_GAMEPAK_SRAM: usize = ADDRESS_START_GAMEPAK_SRAM + GAMEPAK_SRAM_SIZE;
 
 pub struct GBAMemory(Memory);
 impl GBAMemory {
@@ -60,6 +80,44 @@ impl GBAMemory {
 
         Ok(GBAMemory(memory))
     }
+
+    pub fn get_cycles_for_address(&self, address: usize, access_width: AccessWidth) -> usize {
+        match address {
+            ADDRESS_START_BIOS..=ADDRESS_END_BIOS => 1,
+            // TODO WRAM on the board needs to use waitstate settings
+            ADDRESS_START_WRAM_BOARD..=ADDRESS_END_WRAM_BOARD => match access_width {
+                AccessWidth::Bit8 | AccessWidth::Bit16 => 3,
+                AccessWidth::Bit32 => 6,
+            },
+            ADDRESS_START_WRAM_CHIP..=ADDRESS_END_WRAM_CHIP => 1,
+            ADDRESS_START_IO_REGISTERS..=ADDRESS_END_IO_REGISTERS => 1,
+            // TODO Plus 1 cycle if video memory is being accessed at the same time
+            ADDRESS_START_PALETTE..=ADDRESS_END_PALETTE => match access_width {
+                AccessWidth::Bit8 | AccessWidth::Bit16 => 1,
+                AccessWidth::Bit32 => 2,
+            },
+            ADDRESS_START_VRAM..=ADDRESS_END_VRAM => match access_width {
+                AccessWidth::Bit8 | AccessWidth::Bit16 => 1,
+                AccessWidth::Bit32 => 2,
+            },
+            ADDRESS_START_OAM..=ADDRESS_END_OAM => 1,
+            // TODO All gamepak accesses need to use waitstate settings
+            ADDRESS_START_GAMEPAK_WAIT0..=ADDRESS_END_GAMEPAK_WAIT0 => match access_width {
+                AccessWidth::Bit8 | AccessWidth::Bit16 => 5,
+                AccessWidth::Bit32 => 8,
+            },
+            ADDRESS_START_GAMEPAK_WAIT1..=ADDRESS_END_GAMEPAK_WAIT1 => match access_width {
+                AccessWidth::Bit8 | AccessWidth::Bit16 => 5,
+                AccessWidth::Bit32 => 8,
+            },
+            ADDRESS_START_GAMEPAK_WAIT2..=ADDRESS_END_GAMEPAK_WAIT2 => match access_width {
+                AccessWidth::Bit8 | AccessWidth::Bit16 => 5,
+                AccessWidth::Bit32 => 8,
+            },
+            ADDRESS_START_GAMEPAK_SRAM..=ADDRESS_END_GAMEPAK_SRAM => 5,
+            _ => 0,
+        }
+    }
 }
 impl Deref for GBAMemory {
     type Target = Memory;
@@ -67,4 +125,11 @@ impl Deref for GBAMemory {
 }
 impl DerefMut for GBAMemory {
     fn deref_mut(&mut self) -> &mut Memory { &mut self.0 }
+}
+
+#[derive(Copy, Clone)]
+pub enum AccessWidth {
+    Bit8,
+    Bit16,
+    Bit32,
 }

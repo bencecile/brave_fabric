@@ -18,7 +18,9 @@ use crate::{
     memory::GBAMemory,
 };
 
-const SAVE_INTERVAL: Duration = Duration::from_secs(60);
+// const SAVE_INTERVAL: Duration = Duration::from_secs(60);
+/// The GBA's CPU clock speed in hertz
+const CLOCK_SPEED: usize = 16_780_000;
 
 pub struct GBACore {
     settings: GBASettings,
@@ -32,7 +34,7 @@ impl GBACore {
         let _save_path = settings::make_save_path(&settings);
 
         let memory = GBAMemory::new(rom_path, &bios_path)?;
-        let cpu = Cpu::new(&memory)?;
+        let cpu = Cpu::new();
 
         Ok(GBACore {
             settings,
@@ -45,7 +47,22 @@ impl GBACore {
 }
 impl EmulatorCore for GBACore {
     fn on_update(&mut self, left_over: Duration) -> EmulatorCoreResult<Duration> {
-        Ok(Duration::from_micros(13500))
+        let mut cycles = 0;
+
+        if self.cpu.is_init_state() {
+            match self.cpu.read_next_instruction(&mut self.memory) {
+                Ok(ran_cycles) => cycles += ran_cycles,
+                Err(e) => panic!(e),
+            }
+        }
+        // TODO Figure out how many cycles we'll want to go
+        while cycles < 100 {
+            match self.cpu.run_next_instruction(&mut self.memory) {
+                Ok(ran_cycles) => cycles += ran_cycles,
+                Err(e) => panic!(e),
+            }
+        }
+        Ok(Duration::from_micros(0))
     }
 
     fn on_pause(&mut self) -> EmulatorCoreResult<()> {
