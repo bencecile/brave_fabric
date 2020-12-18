@@ -16,17 +16,25 @@ pub struct Branch {
     /// If the condition is full, it's a BLX (switch to Thumb and this is the half-word offset).
     /// If not, false is branch and true is branch with link
     pub opcode: bool,
-    pub offset: u32,
+    /// The offset to the new instruction in bytes
+    pub offset: i32,
 }
 impl Branch {
     fn from_instruction(instruction: u32) -> Option<Branch> {
         const IDENTIFIER: u32 = 0b00001010_00000000_00000000_00000000;
         const OPCODE_BIT: u32 = 0b00000001_00000000_00000000_00000000;
         const OFFSET_BYTES: u32 = 0b00000000_11111111_11111111_11111111;
+        const OFFSET_SIGNED_BIT: u32 = 0b00000000_10000000_00000000_00000000;
+        const OFFSET_SIGNED_EXTRA: u32 = 0b11111111_00000000_00000000_00000000;
         if instruction & IDENTIFIER == IDENTIFIER {
             let condition = Condition::from_instruction(instruction);
             let opcode = instruction & OPCODE_BIT == OPCODE_BIT;
-            let offset = instruction & OFFSET_BYTES;
+            let mut offset = instruction & OFFSET_BYTES;
+            if offset & OFFSET_SIGNED_BIT == OFFSET_SIGNED_BIT {
+                // The offset is supposed to be negative so fill them out before converting
+                offset |= OFFSET_SIGNED_EXTRA;
+            }
+            let offset = offset as i32 * 4;
             Some(Branch { condition, opcode, offset })
         } else {
             None
@@ -34,6 +42,7 @@ impl Branch {
     }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum Condition {
     /// Flags: Z=1, equal (zero) (same)
     Equal,

@@ -18,6 +18,10 @@ fn main() -> Result<(), String> {
     let mut window = Window::new()
         .expect("Failed to create the window");
     let mut emulator_core = find_runnable_core(&rom_path, &window)?;
+    if let Err(e) = emulator_core.on_start() {
+        panic!(e);
+    }
+
     let mut last_update = Instant::now();
     let mut until_next_update = Duration::from_secs(0);
     'main_loop: loop {

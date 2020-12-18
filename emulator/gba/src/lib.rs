@@ -26,6 +26,7 @@ pub struct GBACore {
     settings: GBASettings,
     memory: GBAMemory,
     cpu: Cpu,
+    leftover_cycles: usize,
 }
 impl GBACore {
     pub fn create(settings: GBASettings, window: &Window) -> EmulatorCoreResult<GBACore> {
@@ -40,21 +41,22 @@ impl GBACore {
             settings,
             memory,
             cpu,
+            leftover_cycles: 0,
         })
     }
 }
 impl GBACore {
 }
 impl EmulatorCore for GBACore {
-    fn on_update(&mut self, left_over: Duration) -> EmulatorCoreResult<Duration> {
-        let mut cycles = 0;
+    fn on_start(&mut self) -> EmulatorCoreResult<()> {
+        self.leftover_cycles += self.cpu.read_next_instruction(&mut self.memory)?;
+        Ok(())
+    }
 
-        if self.cpu.is_init_state() {
-            match self.cpu.read_next_instruction(&mut self.memory) {
-                Ok(ran_cycles) => cycles += ran_cycles,
-                Err(e) => panic!(e),
-            }
-        }
+    fn on_update(&mut self, left_over: Duration) -> EmulatorCoreResult<Duration> {
+        let mut cycles = self.leftover_cycles;
+        self.leftover_cycles = 0;
+
         // TODO Figure out how many cycles we'll want to go
         while cycles < 100 {
             match self.cpu.run_next_instruction(&mut self.memory) {

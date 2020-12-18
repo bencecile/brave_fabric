@@ -6,7 +6,11 @@ use std::{
     time::{Duration},
 };
 
+use memory::MemoryError;
+
 pub trait EmulatorCore {
+    fn on_start(&mut self) -> EmulatorCoreResult<()>;
+
     // TODO We will want to pass in any UI input events that occured between ticks.
     fn on_update(&mut self, left_over: Duration) -> EmulatorCoreResult<Duration>;
 
@@ -18,10 +22,14 @@ pub type EmulatorCoreResult<T> = Result<T, EmulatorCoreError>;
 #[derive(Debug)]
 pub enum EmulatorCoreError {
     IOError(IOError),
+    MemoryError(MemoryError),
 
     IncompatibleRom,
     InvalidBiosFile(String),
 }
 impl From<IOError> for EmulatorCoreError {
     fn from(error: IOError) -> Self { Self::IOError(error) }
+}
+impl From<MemoryError> for EmulatorCoreError {
+    fn from(error: MemoryError) -> Self { Self::MemoryError(error) }
 }
